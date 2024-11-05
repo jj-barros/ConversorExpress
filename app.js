@@ -13,7 +13,10 @@ app.use(cors(
   }
 ))
 app.use(session({
-  secret: 'nklslbskflbs34f78sfbksjhrdn346fvkbsd'
+  secret: 'nklslbskflbs34f78sfbksjhrdn346fvkbsd',
+  cookie: {
+    maxAge: 60000
+  },
 }))
 
 // Create the connection to database
@@ -23,33 +26,53 @@ const connection = mysql.createPool({
   database: 'servletlogin',
 });
 
-async function login(req, res) { //req peticion, res respuesta
+app.get('/', (req, res) => {
+  res.send('Hello World')
+})
+app.get('/login', async (req, res) => { //req = request, peticion; respuesta
   const datos = req.query;
-  const [filas] = await connection.query("SELECT * FROM  `usuarios` WHERE `usuario` = '"+datos.usuario+"' AND `contraseña` = '"+datos.clave+"'")
+  // A simple SELECT query
+  try {
+    const [results, fields] = await connection.query("SELECT * FROM  `usuarios` WHERE `usuario` = ? AND `contraseña` = ?", [datos.usuario, datos.clave]);
+    if (results.length > 0) {
+      req.session.usuario = datos.usuario;
+      res.status(200).send('Inicio de sesión correcto')
+    } else {
+      res.status(401).send('Datos incorrectos')
+    }
 
-  if (filas.length ==1) {
-    req.session.usuario = datos.usuario
-    res.status(200).json({ logueado: true })
-  } else {
-    res.status(401).json({ error: 'Usuario o contraseña incorrecta'})
+    console.log(results); // results contains rows returned by server
+    console.log(fields); // fields contains extra meta data about resul
+  } catch (error) {
+    console.log(error);
   }
-}
+})
 
-app.get('/login', login)
-
-function validar(req, res) {
+app.get('/validar', (req, res) => {
   if (req.session.usuario) {
-    res.status(200).json({ logueado: true})
-  } else{
-    res.status(401).json({ error: 'Usuario no logueado'})
+    res.status(200).send('Sesion validada')
+  } else {
+    res.status(401).send('No autorizado')
   }
-}
+})
 
-app.get('/validar', validar)
+app.get('/registrar', async (req, res) => {
+  const datos = req.query;
+  // A simple SELECT query
+  try {
+    const [results, fields] = await connection.query("INSERT INTO `usuarios` (`id`, `usuario`, `contraseña`) VALUES (NULL, ?, ?);", [datos.usuario, datos.clave]);
+    if (results.affectedRows > 0) {
+      req.session.usuario = datos.usuario;
+      res.status(201).send('Usuario registrado')
+    } else {
+      res.status(401).send('Error al registrar Usuario')
+    }
 
-app.get('/cerrar', (req, res) => {
-  req.session.destroy()
-  res.status(200).json({ logueado: false})
+    console.log(results); // results contains rows returned by server
+    console.log(fields); // fields contains extra meta data about resul
+  } catch (err) {
+    console.log(err);
+  }
 })
 
 app.listen(port, () => {
